@@ -489,6 +489,7 @@ class GeneticCode:
                 batch_file.write('find %s -name hmm_output_%s -delete \n' % (self.scratch_dir, indices_str))
         shell_count += 1
         
+        '''
         # Run hmmscan shell scripts one at a time [comment out this section if submitting jobs to scheduler]
         for shell_i in range(shell_count):
             print('Running hmmscan shell script %i out of %i' % (shell_i + 1, shell_count))
@@ -496,7 +497,6 @@ class GeneticCode:
             dum = call(["chmod", "777", shell_script])
             dum = call([shell_script])
         
-        '''
         ## Alternatively, write a job array file and submit to job scheduler
         # 1. comment out the for-loop directly above, and uncomment this section.
         # 2. adapt code and template_job_array.sh file to your local job scheduler
@@ -513,6 +513,15 @@ class GeneticCode:
             p = Popen(['sbatch'], stdin=f, stdout=PIPE, stderr=PIPE)
             p.wait()
         '''
+        job_array_script = '%s/hmmscan_jobarray.sh' % self.scratch_dir
+        dum = call(['cp', '%s/template_jobarray_sge.sh' % self.resource_dir, job_array_script])
+        with open(job_array_script, 'a') as jf:
+            jf.write('\n\nchmod 777 %s/hmmscan_${SGE_TASK_ID}.sh' % self.scratch_dir)
+            jf.write('\n%s/hmmscan_${SGE_TASK_ID}.sh' % self.scratch_dir)
+        print("Job array script ready. Please run the following command:")
+        print(f"qsub -t 0-{str(shell_count)} {job_array_script}")
+        # p = Popen(['qsub', '-t', '0-%s' % str(shell_count), job_array_script])
+        # p.wait()
     
     def write_outputs(self,  gen_code_preconv):
         """
