@@ -11,6 +11,7 @@ def argument_parsing():
     # remaining arguments all are set optionally, otherwise default values
     parser.add_argument('--resource_directory', help='directory where resource files can be found (default: [script dir]/resources)', type=str)
     parser.add_argument('--hmmer_directory', help='directory where HMMER and Easel executables can be found (default: [script dir]/hmmer-3.1b2/bin)', type=str)
+    parser.add_argument('--run_mode', help='run alignment jobs directly (`direct`, default) or make cluster jobs for `slurm` or `sge`', default='direct', type=str)
     
     return parser.parse_args()
 
@@ -43,7 +44,10 @@ def main():
     
     gc.processing_genome()
     gc.create_preliminary_translation()
-    gc.hmmscan_jobs()
+    if args.run_mode in ['slurm', 'sge']:
+        gc.hmmscan_jobs(run_mode=args.run_mode)
+    else:
+        gc.hmmscan_jobs(run_mode='direct')
 
 if __name__ == "__main__":
     sys.exit(main())

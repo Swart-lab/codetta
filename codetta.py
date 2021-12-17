@@ -408,10 +408,11 @@ class GeneticCode:
         if expected_len != transl_len:
             raise TypeError('Preliminary translation is not of expected length')
     
-    def hmmscan_jobs(self):
+    def hmmscan_jobs(self, run_mode):
         """
         Runs hmmscan jobs locally to align the entire Pfam database to 6-frame genome translation.
-        If adapting code to run on computing cluster, see commented-out code at the bottom of function.
+
+        Option `run_mode` is either 'direct', 'slurm', or 'sge'
         """
         preliminary_translation_file = '%s.preliminary_translation.faa' % self.prefix
         
@@ -489,39 +490,40 @@ class GeneticCode:
                 batch_file.write('find %s -name hmm_output_%s -delete \n' % (self.scratch_dir, indices_str))
         shell_count += 1
         
-        '''
-        # Run hmmscan shell scripts one at a time [comment out this section if submitting jobs to scheduler]
-        for shell_i in range(shell_count):
-            print('Running hmmscan shell script %i out of %i' % (shell_i + 1, shell_count))
-            shell_script = '%s/hmmscan_%i.sh' % (self.scratch_dir, shell_i)
-            dum = call(["chmod", "777", shell_script])
-            dum = call([shell_script])
-        
+        if run_mode == 'direct':
+            # Run hmmscan shell scripts one at a time [comment out this section if submitting jobs to scheduler]
+            for shell_i in range(shell_count):
+                print('Running hmmscan shell script %i out of %i' % (shell_i + 1, shell_count))
+                shell_script = '%s/hmmscan_%i.sh' % (self.scratch_dir, shell_i)
+                dum = call(["chmod", "777", shell_script])
+                dum = call([shell_script])
         ## Alternatively, write a job array file and submit to job scheduler
         # 1. comment out the for-loop directly above, and uncomment this section.
         # 2. adapt code and template_job_array.sh file to your local job scheduler
         #    the template below should work with a SLURM scheduler and you might only 
         #    need to change the partition name in the resources/template_job_array.sh file
-        
-        job_array_script = '%s/hmmscan_jobarray.sh' % self.scratch_dir
-        dum = call(["cp", "%s/template_jobarray.sh" % self.resource_dir, job_array_script])
-        with open(job_array_script, 'a') as jf:
-            jf.write('#SBATCH --array=0-%i' % shell_count)
-            jf.write('\n\nchmod 777 %s/hmmscan_${SLURM_ARRAY_TASK_ID}.sh' % self.scratch_dir)
-            jf.write('\n%s/hmmscan_${SLURM_ARRAY_TASK_ID}.sh' % self.scratch_dir)
-        with open(job_array_script) as f:
-            p = Popen(['sbatch'], stdin=f, stdout=PIPE, stderr=PIPE)
-            p.wait()
-        '''
-        job_array_script = '%s/hmmscan_jobarray.sh' % self.scratch_dir
-        dum = call(['cp', '%s/template_jobarray_sge.sh' % self.resource_dir, job_array_script])
-        with open(job_array_script, 'a') as jf:
-            jf.write('\n\nchmod 777 %s/hmmscan_${SGE_TASK_ID}.sh' % self.scratch_dir)
-            jf.write('\n%s/hmmscan_${SGE_TASK_ID}.sh' % self.scratch_dir)
-        print("Job array script ready. Please run the following command:")
-        print(f"qsub -t 0-{str(shell_count)} {job_array_script}")
-        # p = Popen(['qsub', '-t', '0-%s' % str(shell_count), job_array_script])
-        # p.wait()
+        elif run_mode == 'slurm':
+            job_array_script = '%s/hmmscan_jobarray.sh' % self.scratch_dir
+            dum = call(["cp", "%s/template_jobarray.sh" % self.resource_dir, job_array_script])
+            with open(job_array_script, 'a') as jf:
+                jf.write('#SBATCH --array=0-%i' % shell_count)
+                jf.write('\n\nchmod 777 %s/hmmscan_${SLURM_ARRAY_TASK_ID}.sh' % self.scratch_dir)
+                jf.write('\n%s/hmmscan_${SLURM_ARRAY_TASK_ID}.sh' % self.scratch_dir)
+            with open(job_array_script) as f:
+                p = Popen(['sbatch'], stdin=f, stdout=PIPE, stderr=PIPE)
+                p.wait()
+        elif run_mode == 'sge':
+            job_array_script = '%s/hmmscan_jobarray.sh' % self.scratch_dir
+            dum = call(['cp', '%s/template_jobarray_sge.sh' % self.resource_dir, job_array_script])
+            with open(job_array_script, 'a') as jf:
+                jf.write('\n\nchmod 777 %s/hmmscan_${SGE_TASK_ID}.sh' % self.scratch_dir)
+                jf.write('\n%s/hmmscan_${SGE_TASK_ID}.sh' % self.scratch_dir)
+                jf.write('\necho \"Job complete\"\ndate')
+            print("Job array script ready. Please run the following command:")
+            print(f"qsub -t 1-{str(shell_count)} {job_array_script}")
+            print("NB: job 0 has to be queued manually")
+            # p = Popen(['qsub', '-t', '0-%s' % str(shell_count), job_array_script])
+            # p.wait()
     
     def write_outputs(self,  gen_code_preconv):
         """
